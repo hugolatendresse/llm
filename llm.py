@@ -188,6 +188,11 @@ test_gen_tokens = tokenizer.encode("The NASDAQ 100 Pre-Market Indicator is up")
 assert total_batch_size % (batch_size * seq_len) == 0
 grad_cumul_steps = total_batch_size // (batch_size * seq_len)
 
+# Suffix for saving artifacts
+import datetime
+now = datetime.datetime.now()
+now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
+
 train_loader = DataLoader(batch_size=batch_size, seq_len=seq_len, num_processes=1, split="train")
 validation_loader = DataLoader(batch_size=batch_size, seq_len=seq_len, num_processes=1, split="validation")
 
@@ -264,7 +269,7 @@ for step in range(max_steps):
 
     # Save the model every saving_model_freq steps
     if (step % saving_model_freq == 0 or last_step) and step > 0:
-        model_path = os.path.join(log_dir, f"model_{step:05d}.pth")
+        model_path = os.path.join(log_dir, f"model_{step:05d}_{now_str}.pth")
         torch.save(model, model_path)
 
     # TODO generate from the model! 
@@ -294,11 +299,8 @@ for step in range(max_steps):
     with open(log_file, "a") as f:
         f.write(train_update_msg)
 
-# Save the lists of training loss and validation loss 
-import datetime
-now = datetime.datetime.now()
-now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
-np.save(f'training_loss_{now_str}.npy', np.array(training_loss))
-np.save(f'validation_loss_{now_str}.npy', np.array(validation_loss))
+# Save the lists of training loss and valid
+np.save(os.path.join(log_dir, f'training_loss_{now_str}.npy'), np.array(training_loss))
+np.save(os.path.join(log_dir, f'validation_loss_{now_str}.npy'), np.array(validation_loss))
 
 # TODO explain why accuracy doesn't really matter 
