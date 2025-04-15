@@ -1,41 +1,62 @@
+import torch
 import torch.nn as nn
-from dataclasses import dataclass
+from torch.nn import functional as F
 
 
-@dataclass
-class ModelConfig:
-    max_seq_len: int = 1024
-    vocab_len: int = 50257
-    layer_cnt: int = 12
-    head_cnt: int = 12 
-    model_dim: int = 768
+class AttentionModule(nn.Module):
 
-
-class SelfAttention(nn.Module):
-
-    def __init__(self, config):
+    def __init__(self, num_head, embedding_size):
         super().__init__()
-        self.head_cnt = config.head_cnt
-        self.model_dim = config.model_dim
-        self.qkv_mat = nn.Linear(config.model_dim, 3 * config.model_dim)
-        self.linear = nn.Linear(config.model_dim, config.model_dim)
-        self.linear.linear_layer = 1 
+        self.num_head = num_head
+        self.embedding_size = embedding_size
+        assert self.embedding_size % self.num_head == 0
+        self.qkv_matrices = nn.Linear(self.embedding_size, 3 * self.embedding_size)
+        self.qkv_projections = nn.Linear(self.embedding_size, self.embedding_size)
 
     def forward(self, x):
-        # TODO compare with Needle
-        batch, seq_len, model_dim = x.size()
-        q, k, v = self.qkv_mat(x).split(self.model_dim, dim=2)
+        batch_size, seq_len, q_dim = x.size()
+        qkv = self.qkv_matrices(x)
+        q, k, v = qkv.split(self.embedding_size, dim=2)
+        k = k.view(batch_size, seq_len, self.num_head, q_dim // self.num_head).transpose(1, 2) 
+        q = q.view(batch_size, seq_len, self.num_head, q_dim // self.num_head).transpose(1, 2) 
+        v = v.view(batch_size, seq_len, self.num_head, q_dim // self.num_head).transpose(1, 2) 
+        attn = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        attn = attn.transpose(1, 2).contiguous()
+        attn = attn.view(batch_size, seq_len, q_dim) 
+        return self.qkv_projections(attn)
 
-        # k, q, v dimensions should be (batch, head, seq, model_dim)
-        assert self.model_dim % self.head_cnt == 0
-        k = k.view(batch, seq_len, self.head_cnt, model_dim // self.head_cnt)
-        q = q.view(batch, seq_len, self.head_cnt, model_dim // self.head_cnt)
-        v = v.view(batch, seq_len, self.head_cnt, model_dim // self.head_cnt)
-        k = k.transpose(1, 2)
-        q = q.transpose(1, 2)
-        v = v.transpose(1, 2)
-        
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-        y = y.transpose(1, 2).contiguous().view(batch, seq_len, model_dim) 
-        y = self.linear(y)
-        return y
+class MultiLayerPerceptron(nn.Module):
+
+    def __init__(self, embedding_size):
+        super().__init__()
+        self.linear1 = nn.Linear(embedding_size, 4 * embedding_size)
+        self.activation = nn.GELU(approximate='tanh')
+        self.linear2 = nn.Linear(4 * embedding_size, embedding_size)
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.activation(x)
+        x = self.linear2(x)
+        return x
+
+class Transformer(nn.Module):
+
+    def __init__(self, vocab_size, block_cnt, seq_len, num_head, embedding_size):
+        super().__init__()
+        self.layer_norm1 = nn.LayerNorm(embedding_size)
+        self.multi_head_attention = AttentionModule(seq_len=seq_len, 
+                                        vocab_size=vocab_size, 
+                                        block_cnt=block_cnt, 
+                                        num_head=num_head, 
+                                        embedding_size=embedding_size)
+        self.layer_norm2 = nn.LayerNorm(embedding_size)
+        self.multi_layer_perceptron = MultiLayerPerceptron(seq_len=seq_len, 
+                                        vocab_size=vocab_size, 
+                                        block_cnt=block_cnt, 
+                                        num_head=num_head, 
+                                        embedding_size=embedding_size)
+
+    def forward(self, x):
+        x = x + self.multi_head_attention(self.layer_norm1(x))
+        x = x + self.multi_layer_perceptron(self.layer_norm2(x))
+        return x
