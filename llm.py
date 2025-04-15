@@ -1,12 +1,3 @@
-"""
-TODO 
-
-Add to_device everywhere!
-
-
-"""
-
-
 import numpy as np
 import tiktoken
 import os
@@ -17,6 +8,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 torch.set_float32_matmul_precision('high')
 torch.manual_seed(137)
+torch.cuda.manual_seed_all(137)
 
 
 class AttentionModule(nn.Module):
@@ -188,7 +180,7 @@ test_gen_tokens = tokenizer.encode("The NASDAQ 100 Pre-Market Indicator is up")
 assert total_batch_size % (batch_size * seq_len) == 0
 grad_cumul_steps = total_batch_size // (batch_size * seq_len)
 
-# Suffix for saving artifacts
+# Prefix for saving artifacts
 import datetime
 now = datetime.datetime.now()
 now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
@@ -269,7 +261,7 @@ for step in range(max_steps):
 
     # Save the model every saving_model_freq steps
     if (step % saving_model_freq == 0 or last_step) and step > 0:
-        model_path = os.path.join(log_dir, f"model_{step:05d}_{now_str}.pth")
+        model_path = os.path.join(log_dir, f"{now_str}_model_{step:05d}.pth")
         torch.save(model, model_path)
 
     # TODO generate from the model! 
@@ -300,7 +292,7 @@ for step in range(max_steps):
         f.write(train_update_msg)
 
 # Save the lists of training loss and valid
-np.save(os.path.join(log_dir, f'training_loss_{now_str}.npy'), np.array(training_loss))
-np.save(os.path.join(log_dir, f'validation_loss_{now_str}.npy'), np.array(validation_loss))
+np.save(os.path.join(log_dir, f'{now_str}_training_loss.npy'), np.array(training_loss))
+np.save(os.path.join(log_dir, f'{now_str}_validation_loss.npy'), np.array(validation_loss))
 
 # TODO explain why accuracy doesn't really matter 
