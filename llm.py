@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import tiktoken
 import os
@@ -165,7 +166,7 @@ embedding_size = 768
 max_learning_rate = 1e-4
 min_learning_rate = max_learning_rate * 0.1 # TODO make lr vary
 warmup_steps = 715
-max_steps = 3
+max_steps = 20
 
 data_dir = "FNSPID_transformed"
 
@@ -296,3 +297,17 @@ np.save(os.path.join(log_dir, f'{now_str}_training_loss.npy'), np.array(training
 np.save(os.path.join(log_dir, f'{now_str}_validation_loss.npy'), np.array(validation_loss))
 
 # TODO explain why accuracy doesn't really matter 
+
+# Plot train and validation performance
+train_steps, train_losses = zip(*training_loss)
+val_steps, val_losses = zip(*validation_loss)
+
+plt.figure(figsize=(8, 6))
+plt.plot(train_steps, train_losses, label='Train Loss', color='blue')
+plt.plot(val_steps, val_losses, label='Validation Loss', color='orange')
+plt.xticks(train_steps)  # or set custom ticks if desired
+plt.xlabel('Steps', fontsize=16)
+plt.ylabel('Loss', fontsize=16)
+plt.title('Loss by Step', fontsize=16)
+plt.legend(fontsize=16)
+plt.show()
