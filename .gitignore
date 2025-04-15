@@ -2,3 +2,6 @@ past
 TODO.py
 edu_fineweb10B/
 log/
+FNSPID_data/
+FNSPID_transformed/
+*.npy
