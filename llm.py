@@ -111,10 +111,9 @@ class Transformer(nn.Module):
         return logits, loss
 
 class DataLoader:
-    def __init__(self, batch_size, seq_len, num_processes, split):
+    def __init__(self, batch_size, seq_len, split):
         self.batch_size = batch_size
         self.seq_len = seq_len
-        self.num_processes = num_processes
         self.split = split
         assert split in ['train', 'validation', 'test'], f"invalid split: {split}"
         files = os.listdir(data_dir)
@@ -137,8 +136,8 @@ class DataLoader:
         buf = self.tokens[self.current_position : self.current_position+batch_size*seq_len+1]
         x = (buf[:-1]).view(batch_size, seq_len)
         y = (buf[1:]).view(batch_size, seq_len)
-        self.current_position += batch_size * seq_len * self.num_processes
-        if self.current_position + (batch_size * seq_len * self.num_processes + 1) > len(self.tokens):
+        self.current_position += batch_size * seq_len 
+        if self.current_position + (batch_size * seq_len  + 1) > len(self.tokens):
             # The current shard is exhausted, so we need to load the next one
             self.choose_shard_and_position()
         return x, y
@@ -186,8 +185,8 @@ import datetime
 now = datetime.datetime.now()
 now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
 
-train_loader = DataLoader(batch_size=batch_size, seq_len=seq_len, num_processes=1, split="train")
-validation_loader = DataLoader(batch_size=batch_size, seq_len=seq_len, num_processes=1, split="validation")
+train_loader = DataLoader(batch_size=batch_size, seq_len=seq_len, split="train")
+validation_loader = DataLoader(batch_size=batch_size, seq_len=seq_len, split="validation")
 
 
 model = Transformer(seq_len=seq_len, vocab_size=vocab_size, block_cnt=block_cnt, num_head=num_head, embedding_size=embedding_size)
@@ -299,15 +298,17 @@ np.save(os.path.join(log_dir, f'{now_str}_validation_loss.npy'), np.array(valida
 # TODO explain why accuracy doesn't really matter 
 
 # Plot train and validation performance
+tick_width = 100
 train_steps, train_losses = zip(*training_loss)
 val_steps, val_losses = zip(*validation_loss)
-
+custom_ticks = range(min(train_steps), max(train_steps) + 1, tick_width)
 plt.figure(figsize=(8, 6))
-plt.plot(train_steps, train_losses, label='Train Loss', color='blue')
+# plt.plot(train_steps, train_losses, label='Train Loss', color='blue')
 plt.plot(val_steps, val_losses, label='Validation Loss', color='orange')
-plt.xticks(train_steps)  # or set custom ticks if desired
+plt.xticks(custom_ticks)
 plt.xlabel('Steps', fontsize=16)
 plt.ylabel('Loss', fontsize=16)
+plt.ylim(0, 11)
 plt.title('Loss by Step', fontsize=16)
-plt.legend(fontsize=16)
+plt.legend(fontsize=14)
 plt.show()
